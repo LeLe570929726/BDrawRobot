@@ -12,13 +12,14 @@ $configJson = json_decode(fread($configFile, filesize("config.json")), true);
 fclose($configFile);
 
 // Check post data
-if(!isset($_POST["x"]) || !isset($_POST["y"]) || !isset($_POST["color"])) {
-    echo "{\"status\":\"success\",\"next\":{\"x\":\"" . $configJson["start"]["x"] . "\",\"y\":\"" . $configJson["start"]["y"] . "\"}}";
+if(!isset($_POST["data"])) {
+    echo "{\"status\":\"success\",\"task\":{\"x\":\"" . $configJson["start"]["x"] . "\",\"y\":\"" . $configJson["start"]["y"] . 
+        "\", \"w\":\"" . sizeof($configJson["data"][0]) . "\",\"h\":\"" . sizeof($configJson["data"]) . "\"}}";
     exit(0);
 }
-if($_POST["x"] < 0 || $_POST["x"] > 1280 || $_POST["y"] < 0 || $_POST["y"] > 720) {
+$dataJson = json_decode($_POST["data"], true);
+if(sizeof($dataJson) != sizeof($configJson["data"]) || sizeof($dataJson[0]) != sizeof($configJson["data"][0])) {
     echo "{\"status\":\"failure\"}";
-    exit(0);
 }
 
 // Read and process color file
@@ -31,39 +32,49 @@ $photoFile = fopen("photo.json", "r");
 $photoJson = json_decode(fread($photoFile, filesize("photo.json")), true);
 fclose($photoFile);
 
-// Process the position and color
-$relativeX = $_POST["x"] - $configJson["start"]["x"];
-$relativeY = $_POST["y"] - $configJson["start"]["y"];
+// Read and process queue file
+$queueFile = fopen("queue.json", "r");
+$queueJson = json_decode(fread($queueFile, filesize("queue.json")), true);
+fclose($queueFile);
 
-// Check border
-if($relativeX > sizeof($configJson["data"][0]) - 1 || $relativeY > sizeof($configJson["data"]) - 1) {
-    echo "{\"status\":\"failure\"}";
-    exit(0);
+// Process the color
+for($i = 0; $i < sizeof($dataJson); ++$i) {
+    for($j = 0; $j < sizeof($dataJson[0]); ++$j) {
+        $dataJson[$i][$j] = $colorJson["color"][$dataJson[$i][$j]];
+    }
+}
+$photoJson["data"] = $dataJson;
+
+// Check the queue
+for($i = 0; $i < sizeof($photoJson["data"]); ++$i) {
+    for($j = 0; $j < sizeof($photoJson["data"][$i]); ++$j) {
+        $queueAdd = array("x" => $configJson["start"]["x"] + $j, "y" => $configJson["start"]["y"] + $i, "color" => $configJson["data"][$i][$j]);
+        if($configJson["data"][$i][$j] != $photoJson["data"][$i][$j]) {
+            if(array_search($queueAdd, $queueJson["queue"]) === false) {
+                $queueJson["queue"][] = $queueAdd;
+            }
+        } else {
+            $searchResult = array_search($queueAdd, $queueJson["queue"]);
+            if($searchResult !== false) {
+                array_splice($queueJson["queue"], $searchResult, 1);
+            }
+        }
+    }
 }
 
-// Process color
-$photoJson["data"][$relativeY][$relativeX] = $colorJson["color"][$_POST["color"]];
+// Save queue
+$queueFile = fopen("queue.json", "w");
+fwrite($queueFile, json_encode($queueJson));
+fclose($queueFile);
 
-// Write file
+// Save the photo
 $photoFile = fopen("photo.json", "w");
 fwrite($photoFile, json_encode($photoJson));
 fclose($photoFile);
 
-// Process next
-if($relativeX + 1 > sizeof($configJson["data"][0]) - 1) {
-    if($relativeY + 1 > sizeof($configJson["data"]) - 1) {
-        $nextX = $configJson["start"]["x"];
-        $nextY = $configJson["start"]["y"];
-    } else {
-        $nextX = $configJson["start"]["x"];
-        $nextY = $_POST["y"] + 1;
-    }
-} else {
-    $nextX = $_POST["x"] + 1;
-    $nextY = $_POST["y"];
-}
-
 // Return
-echo "{\"status\":\"success\",\"next\":{\"x\":\"" . $nextX . "\",\"y\":\"" . $nextY . "\"}}";
+echo "{\"status\":\"success\",\"task\":{\"x\":\"" . $configJson["start"]["x"] . "\",\"y\":\"" . $configJson["start"]["y"] . 
+    "\", \"w\":\"" . sizeof($configJson["data"][0]) . "\",\"h\":\"" . sizeof($configJson["data"]) . "\"}}";
+exit(0);
 
 ?>

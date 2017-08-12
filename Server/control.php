@@ -37,18 +37,6 @@ $photoFile = fopen("photo.json", "r");
 $photoJson = json_decode(fread($photoFile, filesize("photo.json")), true);
 fclose($photoFile);
 
-// Search the config and photo
-for($i = 0; $i < sizeof($photoJson["data"]); ++$i) {
-    for($j = 0; $j < sizeof($photoJson["data"][$i]); ++$j) {
-        if($configJson["data"][$i][$j] != $photoJson["data"][$i][$j]) {
-            $queueAdd = array("x" => $configJson["start"]["x"] + $j, "y" => $configJson["start"]["y"] + $i, "color" => $configJson["data"][$i][$j]);
-            if(array_search($queueAdd, $queueJson["queue"]) == false) {
-                $queueJson["queue"][] = $queueAdd;
-            }
-        }
-    }
-}
-
 // Check the queue
 if(sizeof($queueJson["queue"]) == 0) {
     echo "{\"status\":\"success\",\"task\":{\"status\":\"none\"}";
